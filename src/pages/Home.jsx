@@ -22,7 +22,7 @@ const Home = () => {
   const fetchPosts = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/posts`)
-      setPosts(response.data)
+      setPosts(response.data.posts)
     } catch (error) {
       console.error("Error fetching posts:", error)
     } finally {

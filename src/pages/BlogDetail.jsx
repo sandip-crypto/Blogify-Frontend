@@ -42,7 +42,8 @@ const BlogDetail = () => {
   const fetchComments = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/comments/${id}`)
-      setComments(response.data)
+      setComments(response.data.comments)
+      console.log('These are comments: ',response.data.comments)
     } catch (error) {
       console.error("Error fetching comments:", error)
     }
