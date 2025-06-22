@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react"
 import { useParams, Link } from "react-router-dom"
 import { toast } from "react-hot-toast"
@@ -18,7 +17,7 @@ const BlogDetail = () => {
   const { id } = useParams()
   const { user } = useAuth()
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
   useEffect(() => {
     fetchPost()
@@ -29,8 +28,12 @@ const BlogDetail = () => {
     try {
       const response = await axios.get(`${API_URL}/api/posts/${id}`)
       setPost(response.data)
-      setLikes(response.data.likes || 0)
-      // Check if user has liked this post (you'd implement this in backend)
+      setLikes(response.data.likes?.length || 0)
+      // Check if user has liked this post
+      if (user && response.data.likes) {
+        const userLiked = response.data.likes.some((like) => like.user === user.id)
+        setLiked(userLiked)
+      }
     } catch (error) {
       toast.error("Failed to fetch post")
       console.error("Error fetching post:", error)
@@ -42,10 +45,18 @@ const BlogDetail = () => {
   const fetchComments = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/comments/${id}`)
-      setComments(response.data.comments)
-      console.log('These are comments: ',response.data.comments)
+      console.log("These are comments: ", response.data)
+
+      // Handle both array and object responses
+      const commentsData = Array.isArray(response.data) ? response.data : response.data.comments || []
+
+      // Filter out any invalid comments
+      const validComments = commentsData.filter((comment) => comment && typeof comment === "object" && comment._id)
+
+      setComments(validComments)
     } catch (error) {
       console.error("Error fetching comments:", error)
+      setComments([]) // Set empty array on error
     }
   }
 
@@ -62,6 +73,8 @@ const BlogDetail = () => {
       const response = await axios.post(`${API_URL}/api/comments/${id}`, {
         comment: newComment,
       })
+
+      // Add the new comment to the beginning of the comments array
       setComments([response.data, ...comments])
       setNewComment("")
       toast.success("Comment added successfully")
@@ -91,9 +104,15 @@ const BlogDetail = () => {
       toast.error("Please login to like posts")
       return
     }
-    // Implement like functionality
-    setLiked(!liked)
-    setLikes(liked ? likes - 1 : likes + 1)
+
+    try {
+      const response = await axios.post(`${API_URL}/api/posts/${id}/like`)
+      setLiked(response.data.liked)
+      setLikes(response.data.likesCount)
+    } catch (error) {
+      toast.error("Failed to like post")
+      console.error("Error liking post:", error)
+    }
   }
 
   const handleShare = () => {
@@ -218,7 +237,7 @@ const BlogDetail = () => {
           </div>
 
           {/* Tags */}
-          {post.tags.length > 0 && (
+          {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-6">
               {post.tags.map((tag, index) => (
                 <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
@@ -258,9 +277,8 @@ const BlogDetail = () => {
             <div className="flex items-center gap-6">
               <button
                 onClick={handleLike}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  liked ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${liked ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600"
+                  }`}
               >
                 <Heart className={`h-5 w-5 ${liked ? "fill-current" : ""}`} />
                 <span>{likes}</span>
@@ -330,30 +348,41 @@ const BlogDetail = () => {
             {comments.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No comments yet. Be the first to share your thoughts!</p>
             ) : (
-              comments.map((comment) => (
-                <div key={comment._id} className="flex gap-4">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <User className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold text-gray-900">{comment.userId.name}</span>
-                        <span className="text-sm text-gray-500">{formatDate(comment.createdAt)}</span>
-                      </div>
-                      {user && user.id === comment.userId._id && (
-                        <button
-                          onClick={() => handleDeleteComment(comment._id)}
-                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
+              comments.map((comment) => {
+                // Ensure comment is a valid object and has required properties
+                if (!comment || typeof comment !== "object" || !comment._id) {
+                  return null
+                }
+
+                return (
+                  <div key={comment._id} className="flex gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <User className="h-5 w-5 text-white" />
                     </div>
-                    <p className="text-gray-700 leading-relaxed">{comment.comment}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-gray-900">
+                            {comment.userId?.name || "Anonymous User"}
+                          </span>
+                          <span className="text-sm text-gray-500">{formatDate(comment.createdAt)}</span>
+                        </div>
+                        {user && comment.userId && user.id === comment.userId._id && (
+                          <button
+                            onClick={() => handleDeleteComment(comment._id)}
+                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-gray-700 leading-relaxed">
+                        {typeof comment.comment === "string" ? comment.comment : "Invalid comment"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>

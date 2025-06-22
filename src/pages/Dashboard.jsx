@@ -15,7 +15,7 @@ const Dashboard = () => {
   const [stats, setStats] = useState({ total: 0, published: 0, drafts: 0, views: 0 })
   const [filter, setFilter] = useState("all") // all, published, draft
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
   useEffect(() => {
     fetchUserPosts()
@@ -25,7 +25,7 @@ const Dashboard = () => {
   const fetchUserPosts = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/user/posts`)
-      setPosts(response.data)
+      setPosts(response.data.posts)
     } catch (error) {
       toast.error("Failed to fetch your posts")
       console.error("Error fetching user posts:", error)
